@@ -10,3 +10,12 @@
 .borough-label{font-size:12px;font-weight:700;text-align:center;color:#3e655b;text-shadow:0 1px 3px white,1px 0 3px white;pointer-events:none}.map-toolbar a{text-decoration:none}.map-status{max-width:calc(100% - 40px)}
 
 .map-status.local-base{top:auto;bottom:68px;width:auto;background:#fff;color:#45675e;border:1px solid #dfe7e4;font-size:11px;padding:8px 12px}
+
+/* Keep map controls and expanded source details inside the available viewport. */
+.detail{max-height:calc(100% - 170px);overflow:auto;overscroll-behavior:contain}
+.detail details{font-size:12px;line-height:1.5;margin-top:10px}
+.detail summary{cursor:pointer;min-height:32px;padding:6px 0;color:var(--teal)}
+.detail a,.detail p{overflow-wrap:anywhere}
+.map-toolbar{align-items:flex-start}.map-button{white-space:nowrap}
+@media(min-width:751px) and (max-width:1350px){.map-toolbar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.map-heading{grid-column:1/-1;width:100%;padding:10px 12px}.map-heading strong{font-size:18px;margin-top:3px}.map-button{width:100%;font-size:11px;padding:8px 4px!important}.access-panel{top:160px;width:min(365px,calc(100% - 32px));right:16px}.map-status:not(.local-base){top:160px}.detail{max-height:calc(100% - 240px)}}
+@media(max-width:750px){.detail{max-height:calc(100% - 110px)}}

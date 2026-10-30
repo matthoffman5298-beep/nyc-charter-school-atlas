@@ -2,6 +2,7 @@
 (() => {
 const $ = id => document.getElementById(id);
 const safe = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const normalizeSearch = value => String(value ?? '').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 const data = window.ATLAS_DATA || {metadata:{},schools:[]};
 const schools = [...data.schools].sort((a,b)=>a.name.localeCompare(b.name));
 const meta = data.metadata || {};
@@ -31,14 +32,14 @@ if($('access-panel'))$('access-panel').hidden=true;
 selected=s.id;
 for(const el of document.querySelectorAll('.item')){const active=el.dataset.id===s.id;el.classList.toggle('active',active);el.setAttribute('aria-pressed',String(active));if(active&&fromMap)el.scrollIntoView({block:'nearest'});}
 $('detail').innerHTML=`<button class="close" aria-label="Close school details">×</button><div class="eyebrow">${safe(s.borough)} · CHARTER SCHOOL RECORD</div><h2 id="detail-title" tabindex="-1">${safe(s.name)}</h2><p>${safe(s.address)}</p>${s.code?`<p>NYSED code · ${safe(s.code)}</p>`:''}<p class="quality-note">${safe(quality(s))}. Confirm current location and admissions with the school.</p>${s.dbn?`<p>NYCPS DBN · ${safe(s.dbn)}</p>`:''}${reviewDetail(s)}${directoryDetail(s)}<div class="detail-actions"><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.address+' '+s.name)}" target="_blank" rel="noopener">Get directions ↗</a><a href="https://www.nysed.gov/charter-schools/charter-schools-directory" target="_blank" rel="noopener">Verify in NYSED directory ↗</a></div>`;
-$('detail').hidden=false;$('detail').setAttribute('aria-labelledby','detail-title');$('detail').querySelector('.close').onclick=()=>{closeDetail();if(matchMedia('(max-width:750px)').matches)setView('list');const button=[...document.querySelectorAll('.item')].find(el=>el.dataset.id===s.id);if(button)button.focus();};
+$('detail').hidden=false;$('detail').setAttribute('aria-labelledby','detail-title');$('detail').querySelector('.close').onclick=()=>{const returnId=selected;closeDetail();if(matchMedia('(max-width:750px)').matches)setView('list');const button=[...document.querySelectorAll('.item')].find(el=>el.dataset.id===returnId);if(button)button.focus();};
 if(matchMedia('(max-width:750px)').matches)setView('map');
 if(!fromMap)$('detail-title').focus({preventScroll:true});
-if(map&&clusters){const marker=markers.get(s.id);if(!fromMap)clusters.zoomToShowLayer(marker,()=>{marker.openPopup();});}
+if(map&&clusters){const marker=markers.get(s.id);if(!fromMap){map.setView([s.lat,s.lon],Math.max(map.getZoom(),15),{animate:false});clusters.zoomToShowLayer(marker,()=>{marker.openPopup();});}}
 }
 function render(shouldFit=true){
-const q=$('search').value.trim().toLocaleLowerCase(), b=$('borough').value;
-filtered=schools.filter(s=>(!b||s.borough===b)&&(!q||`${s.name} ${(s.aliases||[]).join(' ')} ${s.address} ${s.borough} ${s.code} ${s.dbn||''}`.toLocaleLowerCase().includes(q)));
+const q=$('search').value.trim(), terms=normalizeSearch(q).split(' ').filter(Boolean), b=$('borough').value;
+filtered=schools.filter(s=>(!b||s.borough===b)&&terms.every(term=>normalizeSearch(`${s.name} ${(s.aliases||[]).join(' ')} ${s.address} ${s.borough} ${s.code} ${s.dbn||''}`).includes(term)));
 if(selected&&!filtered.some(s=>s.id===selected))closeDetail();
 $('count').textContent=filtered.length.toLocaleString();$('summary').textContent=' school records';$('scope').textContent=`${q||b?'Filtered from':'Showing all'} ${schools.length.toLocaleString()} mapped records`;
 $('map-title').textContent=b||'All five boroughs';$('export').disabled=!filtered.length;$('fit').disabled=!filtered.length||!map;
@@ -56,7 +57,7 @@ $('search').addEventListener('input',()=>render());$('borough').addEventListener
 $('list-tab').onclick=()=>setView('list');$('map-tab').onclick=()=>setView('map');
 $('about-button').onclick=$('source-button').onclick=()=>$('about').showModal();$('close-about').onclick=()=>$('about').close();
 $('about').addEventListener('click',e=>{if(e.target===$('about')){const r=$('about').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)$('about').close();}});
-$('export').onclick=()=>{const cell=v=>typeof v==='number'&&Number.isFinite(v)?String(v):'"'+String(v??'').replace(/^(?:\s*[=+@\-]|[\t\r])/,"'$&").replace(/"/g,'""')+'"';const rows=[['School name','Address','Borough','NYSED code','Latitude','Longitude','Snapshot retrieved','Source'],...filtered.map(s=>[s.name,s.address,s.borough,s.code,s.lat,s.lon,meta.retrievedAt||meta.fetchedAt,s.sourceUrl||meta.sourceUrl])];const blob=new Blob(['\ufeff'+rows.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8;'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='nyc-charter-school-records.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+$('export').onclick=()=>{const cell=v=>typeof v==='number'&&Number.isFinite(v)?String(v):'"'+String(v??'').replace(/^(?:\s*[=+@\-]|[\t\r])/,"'$&").replace(/"/g,'""')+'"';const rows=[['School name','Address','Borough','NYSED code','Latitude','Longitude','State snapshot retrieved','Location reviewed','NYCPS DBN','Campus identifier','Record type','Quality note','Source'],...filtered.map(s=>[s.name,s.address,s.borough,s.code,s.lat,s.lon,s.recordType==='Supplemental campus'?'':meta.retrievedAt||meta.fetchedAt,s.reviewedAt||'',s.dbn||'',s.campusId||'',s.recordType||'State-source record',quality(s),s.sourceUrl||meta.sourceUrl])];const blob=new Blob(['\ufeff'+rows.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8;'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='nyc-charter-school-records.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
 if(window.L && L.markerClusterGroup){
 map=L.map('map',{zoomControl:false,preferCanvas:true,zoomSnap:0.25,minZoom:10,maxZoom:19,maxBounds:[[40.40,-74.36],[40.99,-73.60]],maxBoundsViscosity:1}).setView([40.72,-73.94],11);L.control.zoom({position:'bottomright'}).addTo(map);
 const localFile=location.protocol==='file:'||new URLSearchParams(location.search).has('offline');
